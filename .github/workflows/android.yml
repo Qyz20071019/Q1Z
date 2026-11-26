@@ -139,6 +139,7 @@ jobs:
           if [ -d ../app_patch ]; then
             cp -a ../app_patch/. .
           fi
+          python3 scripts/apply_pdf_importer_patch.py
       - name: Snapshot app source for PDF parser integration
         working-directory: ketishiguang_mvp
         run: |
