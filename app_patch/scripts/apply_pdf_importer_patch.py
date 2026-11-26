@@ -168,6 +168,74 @@ def patch_main_model() -> None:
     print("Patched timetable Course rows to retain normalized courseId")
 
 
+def patch_header_word_bounds() -> None:
+    path = Path("lib/import/pdf_course_importer.dart")
+    source = path.read_text()
+    if "weekdayHeaderWords" in source:
+        print("Weekday word-bound extraction patch already present")
+        return
+    old_extract = """      final lines = <_PdfLine>[];
+
+      for (var page = 0; page < document.pages.count; page++) {"""
+    new_extract = """      final lines = <_PdfLine>[];
+      final weekdayHeaderWords = <int, ({double x, double y})>{};
+      const weekdayMap = {
+        '一': 1, '二': 2, '三': 3, '四': 4,
+        '五': 5, '六': 6, '日': 7, '天': 7,
+      };
+      final weekdayPattern = RegExp(r'星期([一二三四五六日天])');
+      for (var page = 0; page < document.pages.count; page++) {"""
+    source = replace_once(source, old_extract, new_extract, "weekday header map")
+    old_add = """          lines.add(_PdfLine(
+            page: page,
+            centerX: center.dx,
+            centerY: center.dy,
+            text: text,
+          ));"""
+    new_add = """          lines.add(_PdfLine(
+            page: page,
+            centerX: center.dx,
+            centerY: center.dy,
+            text: text,
+          ));
+          if (page == 0) {
+            final matches = weekdayPattern.allMatches(text).toList();
+            if (matches.length == 1) {
+              final match = matches.single;
+              weekdayHeaderWords[weekdayMap[match.group(1)]!] =
+                  (x: center.dx, y: center.dy);
+            } else if (matches.length > 1) {
+              // Syncfusion may combine all seven header labels into one visual
+              // TextLine. Use each TextWord's own bounds instead of the
+              // combined line center, otherwise only one weekday is found.
+              for (final word in line.wordCollection) {
+                final match = weekdayPattern.firstMatch(word.text);
+                if (match == null) continue;
+                final wordCenter = word.bounds.center;
+                weekdayHeaderWords[weekdayMap[match.group(1)]!] =
+                    (x: wordCenter.dx, y: wordCenter.dy);
+              }
+            }
+          }"""
+    source = replace_once(source, old_add, new_add, "weekday word bounds")
+    old_headers = """      final headerPoints = <int, ({double x, double y})>{};
+      for (final line in lines.where((l) => l.page == 0)) {
+        final match = RegExp(r'星期([一二三四五六日天])').firstMatch(line.text);
+        if (match == null) continue;
+        const dayMap = {
+          '一': 1, '二': 2, '三': 3, '四': 4,
+          '五': 5, '六': 6, '日': 7, '天': 7,
+        };
+        headerPoints[dayMap[match.group(1)]!] =
+            (x: line.centerX, y: line.centerY);
+      }"""
+    new_headers = "      final headerPoints = weekdayHeaderWords;"
+    source = replace_once(source, old_headers, new_headers, "replace combined header center")
+    path.write_text(source)
+    print("Patched weekday header extraction to use per-word coordinates")
+
+
 if __name__ == "__main__":
     patch_importer()
     patch_main_model()
+    patch_header_word_bounds()
