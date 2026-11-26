@@ -38,7 +38,7 @@ Future<Uint8List> _buildSyntheticTimetablePdf() async {
 
   final thursday = dayCenters[4]!;
   drawLine(grid, '化工原理实验Ⅱ○', thursday, 120);
-  drawLine(thursday == monday ? grid : grid, '(5-8节)第6周/校区:常青花园', thursday, 135);
+  drawLine(grid, '(5-8节)第6周/校区:常青花园', thursday, 135);
   drawLine(grid, '/场地:实验室/教师:教师乙', thursday, 150);
   drawLine(grid, '/教学班:(2026-2027-1)-TEST002', thursday, 165);
 
@@ -79,12 +79,12 @@ void main() {
           m.weekday == 4 &&
           m.startSection == 5 &&
           m.endSection == 8 &&
-          m.weeks.equals({6})),
+          m.weeks.length == 1 && m.weeks.contains(6)),
       isTrue,
     );
     expect(result.unscheduled, hasLength(2));
     expect(result.unscheduled.any((c) =>
-        c.name == '认识实习' && c.weeks.equals({19})), isTrue);
+        c.name == '认识实习' && c.weeks.length == 1 && c.weeks.contains(19)), isTrue);
     expect(result.unscheduled.any((c) =>
         c.name == '民族手工艺术（通识）' &&
         c.online &&
