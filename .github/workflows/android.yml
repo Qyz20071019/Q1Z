@@ -1,0 +1,52 @@
+name: Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Extract project
+        run: unzip -o ketishiguang_v10_cloud_build.zip
+      - name: Generate Android platform
+        working-directory: ketishiguang_mvp
+        run: flutter create --platforms=android --org com.ketishiguang .
+      - name: Resolve dependencies
+        working-directory: ketishiguang_mvp
+        run: flutter pub get
+      - name: Format Dart sources
+        working-directory: ketishiguang_mvp
+        run: dart format lib test
+      - name: Static analysis
+        working-directory: ketishiguang_mvp
+        run: flutter analyze
+      - name: Tests
+        working-directory: ketishiguang_mvp
+        run: flutter test
+      - name: Build release APK
+        working-directory: ketishiguang_mvp
+        run: flutter build apk --release
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ketishiguang-android-apk
+          path: ketishiguang_mvp/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
