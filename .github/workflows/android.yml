@@ -133,6 +133,20 @@ jobs:
               raise SystemExit("Could not safely locate _createSemester for patching")
           path.write_text(updated)
           PY
+      - name: Snapshot app source for PDF parser integration
+        working-directory: ketishiguang_mvp
+        run: |
+          mkdir -p /tmp/ketishiguang-source
+          cp -a lib test pubspec.yaml /tmp/ketishiguang-source/
+          find /tmp/ketishiguang-source -type f -print | sort
+          cd /tmp
+          zip -qr ketishiguang-source.zip ketishiguang-source
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ketishiguang-source-snapshot
+          path: /tmp/ketishiguang-source.zip
+          retention-days: 3
       - name: Format Dart sources
         working-directory: ketishiguang_mvp
         run: dart format lib test
