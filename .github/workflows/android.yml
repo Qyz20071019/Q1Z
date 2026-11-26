@@ -62,13 +62,13 @@ jobs:
           for index, line in enumerate(lines):
               if line.strip().startswith("file_picker:"):
                   indent = line[:len(line) - len(line.lstrip())]
-                  lines[index] = indent + "file_picker: ^10.3.11"
+                  lines[index] = indent + "file_picker: ^10.3.10"
                   found = True
                   break
           if not found:
               raise SystemExit("Could not find file_picker dependency in pubspec.yaml")
           path.write_text("\n".join(lines) + "\n")
-          print("Updated file_picker dependency to ^10.3.11")
+          print("Updated file_picker dependency to ^10.3.10")
           PY
           flutter pub get
       - name: Apply compatibility fixes
