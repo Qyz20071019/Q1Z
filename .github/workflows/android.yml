@@ -28,6 +28,19 @@ jobs:
       - name: Generate Android platform
         working-directory: ketishiguang_mvp
         run: flutter create --platforms=android --org com.ketishiguang .
+      - name: Configure Android SDK
+        working-directory: ketishiguang_mvp
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-36"
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
+          elif [ -f android/app/build.gradle ]; then
+            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' android/app/build.gradle
+          else
+            echo "Android app Gradle file not found" >&2
+            exit 1
+          fi
       - name: Resolve dependencies
         working-directory: ketishiguang_mvp
         run: flutter pub get
