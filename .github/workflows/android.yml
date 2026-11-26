@@ -36,13 +36,63 @@ jobs:
         run: |
           sed -i "s#import 'package:excel/excel.dart';#import 'package:excel/excel.dart' hide Border;#" lib/main.dart
           rm -f test/widget_test.dart
-      - name: Diagnose semester dialog controller lifecycle
-        working-directory: ketishiguang_mvp
-        run: |
-          echo "===== main.dart lines 330-390 ====="
-          sed -n '330,390p' lib/main.dart
-          echo "===== semester_archive_widget_test.dart lines 75-115 ====="
-          sed -n '75,115p' test/semester_archive_widget_test.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path("lib/main.dart")
+          source = path.read_text()
+          pattern = r"  Future<void> _createSemester\(\) async \{.*?\n  \}\n\n  bool _occurs"
+          replacement = """  Future<void> _createSemester() async {
+              var name = '';
+              final result = await showDialog<String>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('新建学期'),
+                  content: TextField(
+                    autofocus: true,
+                    key: const Key('semester-create-name'),
+                    onChanged: (value) => name = value,
+                    decoration: const InputDecoration(
+                      labelText: '学期名称',
+                      hintText: '例如 2027-2028学年第1学期',
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('取消'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, name.trim()),
+                      child: const Text('创建', key: Key('semester-create-confirm')),
+                    ),
+                  ],
+                ),
+              );
+              if (result == null || result.isEmpty || !mounted) return;
+              name = result;
+              _archive.updateActiveData(
+                courses: _courseRows(),
+                unscheduledCourses: _unscheduledRows(),
+                updatedAt: DateTime.now().toIso8601String(),
+                preserveUndo: true,
+              );
+              final id = SemesterArchive.idForName(name);
+              if (!_archive.createSemester(id: id, name: name)) {
+                _message('这个学期已经存在，可以从学期列表切换过去。');
+                return;
+              }
+              _applyActiveSemester();
+              await _persistArchive(removeLegacyKeys: true);
+              _message('已创建并切换到$name。');
+            }
+
+            bool _occurs"""
+          updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit("Could not safely locate _createSemester for patching")
+          path.write_text(updated)
+          PY
       - name: Format Dart sources
         working-directory: ketishiguang_mvp
         run: dart format lib test
