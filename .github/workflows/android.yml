@@ -54,6 +54,32 @@ jobs:
       - name: Resolve dependencies
         working-directory: ketishiguang_mvp
         run: flutter pub get
+      - name: Raise Android plugin compile SDK
+        working-directory: ketishiguang_mvp
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          cache = Path(os.environ.get("PUB_CACHE", str(Path.home() / ".pub-cache")))
+          packages = cache / "hosted" / "pub.dev"
+          found = False
+          changed = []
+          for path in packages.glob("*/android/build.gradle*"):
+              if path.parent.parent.name.startswith("file_picker-"):
+                  found = True
+              source = path.read_text()
+              updated = re.sub(r"compileSdkVersion\\s+(?:flutter\\.compileSdkVersion|\\d+)", "compileSdkVersion 36", source)
+              updated = re.sub(r"compileSdk\\s*=\\s*(?:flutter\\.compileSdkVersion|\\d+)", "compileSdk = 36", updated)
+              if updated != source:
+                  path.write_text(updated)
+                  changed.append(str(path))
+          print("Patched Android plugin Gradle files:")
+          print("\\n".join(changed) if changed else "(none)")
+          if not found:
+              raise SystemExit("file_picker Android Gradle project was not found in pub cache")
+          if not any("file_picker-" in item for item in changed):
+              raise SystemExit("file_picker compileSdk was not updated; refusing to continue")
+          PY
       - name: Apply compatibility fixes
         working-directory: ketishiguang_mvp
         run: |
