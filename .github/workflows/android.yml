@@ -56,14 +56,19 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           path = Path("pubspec.yaml")
-          source = path.read_text()
-          updated, count = re.subn(r"(?m)^(\\s*file_picker:\\s*).+$", r"\\1^10.3.11", source, count=1)
-          if count != 1:
-              raise SystemExit("Could not find the file_picker dependency in pubspec.yaml")
-          path.write_text(updated)
-          print("Updated file_picker to 10.3.11 for Android compileSdk compatibility")
+          lines = path.read_text().splitlines()
+          found = False
+          for index, line in enumerate(lines):
+              if line.strip().startswith("file_picker:"):
+                  indent = line[:len(line) - len(line.lstrip())]
+                  lines[index] = indent + "file_picker: ^10.3.11"
+                  found = True
+                  break
+          if not found:
+              raise SystemExit("Could not find file_picker dependency in pubspec.yaml")
+          path.write_text("\\n".join(lines) + "\\n")
+          print("Updated file_picker dependency to ^10.3.11")
           PY
           flutter pub get
       - name: Apply compatibility fixes
