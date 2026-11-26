@@ -133,6 +133,12 @@ jobs:
               raise SystemExit("Could not safely locate _createSemester for patching")
           path.write_text(updated)
           PY
+      - name: Apply project source overlays
+        working-directory: ketishiguang_mvp
+        run: |
+          if [ -d ../app_patch ]; then
+            cp -a ../app_patch/. .
+          fi
       - name: Snapshot app source for PDF parser integration
         working-directory: ketishiguang_mvp
         run: |
