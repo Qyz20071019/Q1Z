@@ -65,9 +65,14 @@ Future<Uint8List> _buildSyntheticTimetablePdf() async {
 
 void main() {
   test('旋转90度 PDF 可拆分课程与时段并识别非固定安排', () async {
-    final result = await PdfCourseImporter.parse(
-      await _buildSyntheticTimetablePdf(),
-    );
+    final bytes = await _buildSyntheticTimetablePdf();
+    final diagnosticDocument = PdfDocument(inputBytes: bytes);
+    for (final line in PdfTextExtractor(diagnosticDocument).extractTextLines()) {
+      print('PDF_LINE ${line.text} @ ${line.bounds.center}');
+    }
+    diagnosticDocument.dispose();
+    final result = await PdfCourseImporter.parse(bytes);
+    print('PDF_RESULT meetings=${result.meetings.length} issues=${result.issues.map((e) => e.message).join(' | ')}');
 
     expect(result.semester, '2026-2027学年第1学期');
     expect(result.meetings, hasLength(3));
