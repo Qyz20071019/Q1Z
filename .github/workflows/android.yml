@@ -36,6 +36,13 @@ jobs:
         run: |
           sed -i "s#import 'package:excel/excel.dart';#import 'package:excel/excel.dart' hide Border;#" lib/main.dart
           rm -f test/widget_test.dart
+      - name: Diagnose semester dialog controller lifecycle
+        working-directory: ketishiguang_mvp
+        run: |
+          echo "===== main.dart lines 330-390 ====="
+          sed -n '330,390p' lib/main.dart
+          echo "===== semester_archive_widget_test.dart lines 75-115 ====="
+          sed -n '75,115p' test/semester_archive_widget_test.dart
       - name: Format Dart sources
         working-directory: ketishiguang_mvp
         run: dart format lib test
