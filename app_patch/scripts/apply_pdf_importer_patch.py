@@ -92,10 +92,13 @@ def patch_importer() -> None:
     String section(String heading) {
       final startMatch = RegExp('$heading\\s*[:：]').firstMatch(allText);
       if (startMatch == null) return '';
+      final remainder = allText.substring(startMatch.end);
       final nextHeading = RegExp(
         r'(?:实践课程|其他课程)\s*[:：]|★\s*[:：]',
-      ).firstMatch(allText, startMatch.end);
-      final end = nextHeading?.start ?? allText.length;
+      ).firstMatch(remainder);
+      final end = nextHeading == null
+          ? allText.length
+          : startMatch.end + nextHeading.start;
       return allText.substring(startMatch.end, end);
     }
 
