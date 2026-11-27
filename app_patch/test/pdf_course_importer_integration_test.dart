@@ -119,16 +119,24 @@ Future<Uint8List> _buildGoldenSchedulePdf(
       .toList();
   final codeByCourse = <String, String>{};
 
-  String markerFor(String kind) => switch (kind) {
-        '实验' => '○',
-        '实践' => '●',
-        '上机' => '◇',
-        '讨论' => '◆',
-        _ => '★',
+  String markerForSource(String source) {
+    for (final marker in ['★', '○', '●', '◇', '◆']) {
+      if (source.contains(marker)) return marker;
+    }
+    return '★';
+  }
+
+  String kindForMarker(String marker) => switch (marker) {
+        '○' => '实验',
+        '●' => '实践',
+        '◇' => '上机',
+        '◆' => '讨论',
+        _ => '讲课',
       };
 
   String codeFor(Map<String, dynamic> meeting) {
-    final key = '${meeting['courseName']}|${meeting['kind']}';
+    final marker = markerForSource(meeting['kind'] as String);
+    final key = '${meeting['courseName']}|$marker';
     return codeByCourse.putIfAbsent(
       key,
       () => 'GOLD${(codeByCourse.length + 1).toString().padLeft(3, '0')}',
@@ -161,8 +169,8 @@ Future<Uint8List> _buildGoldenSchedulePdf(
       for (var slot = 0; slot < dayRows.length; slot++) {
         final meeting = dayRows[slot];
         final name = meeting['courseName'] as String;
-        final kind = meeting['kind'] as String;
-        final marker = markerFor(kind);
+        final sourceKind = meeting['kind'] as String;
+        final marker = markerForSource(sourceKind);
         final start = (meeting['startSection'] as num).toInt();
         final end = (meeting['endSection'] as num).toInt();
         final weeks = (meeting['weeks'] as List).cast<int>();
@@ -201,7 +209,9 @@ Future<Uint8List> _buildGoldenSchedulePdf(
     final online = item['online'] == true;
     final prefix = online ? '其他课程：' : '实践课程：';
     final marker = online ? '★' : '●';
-    final note = online ? '/线上课程，上课方式及时间另行通知。' : '';
+    final sourceNote =
+        online ? (item['note'] as String).replaceAll('；', '，') : '';
+    final note = online && sourceNote.isNotEmpty ? '/$sourceNote。' : '';
     drawLine(
       notes,
       '$prefix$name$marker$teacher(共${count}周)/$expression$note;',
@@ -302,8 +312,9 @@ void main() {
       required String teacher,
       required String room,
       required String campus,
+      required String kind,
     }) =>
-        '$name|$weekday|$start-$end|${weeks.join(',')}|$teacher|$room|$campus';
+        '$name|$weekday|$start-$end|${weeks.join(',')}|$teacher|$room|$campus|$kind';
 
     final expectedMeetings = (fixture['fixedMeetings'] as List).map((item) {
       final m = Map<String, dynamic>.from(item as Map);
@@ -317,6 +328,7 @@ void main() {
         teacher: m['teacher'] as String,
         room: m['room'] as String,
         campus: m['campus'] as String,
+        kind: kindForMarker(markerForSource(m['kind'] as String)),
       );
     }).toList();
 
@@ -331,6 +343,7 @@ void main() {
         teacher: m.teacher,
         room: m.room,
         campus: m.campus,
+        kind: m.kind,
       );
     }).toList();
     expect(actualMeetings, unorderedEquals(expectedMeetings));
@@ -339,13 +352,30 @@ void main() {
         (fixture['unscheduled'] as List).map((item) {
       final m = Map<String, dynamic>.from(item as Map);
       final weeks = (m['weeks'] as List).cast<int>()..sort();
-      return '${m['name']}|${weeks.join(',')}|${m['teacher']}|${m['online']}';
+      return '${m['name']}|${weeks.join(',')}|${m['teacher']}|${m['online']}|${m['note']}';
     }).toList();
     final actualUnscheduled = result.unscheduled.map((m) {
       final weeks = m.weeks.toList()..sort();
-      return '${m.name}|${weeks.join(',')}|${m.teacher}|${m.online}';
+      return '${m.name}|${weeks.join(',')}|${m.teacher}|${m.online}|${m.note}';
     }).toList();
     expect(actualUnscheduled, unorderedEquals(expectedUnscheduled));
+
+    final expectedCourseKeys = (fixture['fixedMeetings'] as List).map((item) {
+      final m = Map<String, dynamic>.from(item as Map);
+      return '${m['courseName']}|${kindForMarker(markerForSource(m['kind'] as String))}';
+    }).toSet();
+    final actualCourseKeys = result.courses
+        .map((course) => '${course.name}|${course.kind}')
+        .toSet();
+    expect(actualCourseKeys, unorderedEquals(expectedCourseKeys));
+    expect(result.courses, hasLength(expectedCourseKeys.length));
+
+    final idsByCourse = <String, Set<String>>{};
+    for (final meeting in result.meetings) {
+      final key = '${meeting.courseName}|${meeting.kind}';
+      idsByCourse.putIfAbsent(key, () => <String>{}).add(meeting.courseId);
+    }
+    expect(idsByCourse.values.every((ids) => ids.length == 1), isTrue);
 
     final courseIds = result.courses.map((course) => course.id).toSet();
     expect(

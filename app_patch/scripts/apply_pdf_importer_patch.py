@@ -122,11 +122,136 @@ def patch_importer() -> None:
             : RegExp(r'[★○●◇◆]\s*([^(/;；]+)').firstMatch(item);
         final teacher = teacherMatch?.group(1)?.trim() ?? '';
         final online = item.contains('线上') || item.contains('网络课程');
+        final pathParts = item.split('/');
+        final trailingNote = pathParts.length > 2
+            ? pathParts.skip(2).join('/').trim()
+            : '';
+        final normalizedNote = trailingNote
+            .replaceAll('“', '')
+            .replaceAll('”', '')
+            .replaceAll('，', '；')
+            .replaceAll(RegExp(r'[。.]
+        result.add(UnscheduledImportedCourse(
+          name,
+          Set.unmodifiable(weeks),
+          teacher,
+          note,
+          online: online,
+        ));
+      }
+    }
+
+    readSection('实践课程', practice: true);
+    readSection('其他课程', practice: false);
+    return List.unmodifiable(result);
+  }
+'''
+    source = source[:start] + new_method + source[end:]
+    path.write_text(source)
+    print("Patched PDF importer with linked course definitions and generic unscheduled parsing")
+
+
+def patch_main_model() -> None:
+    path = Path("lib/main.dart")
+    source = path.read_text()
+    if "final String courseId;" in source:
+        print("Course courseId patch already present")
+        return
+    source = replace_once(source, "class Course {\n  final String name;", "class Course {\n  final String name;\n  final String courseId;", "Course field")
+    source = replace_once(source, "    required this.name,\n    this.teacher = '',", "    required this.name,\n    this.courseId = '',\n    this.teacher = '',", "Course constructor")
+    source = replace_once(source, "    'name': name, 'teacher': teacher,", "    'name': name, 'courseId': courseId, 'teacher': teacher,", "Course toJson")
+    source = replace_once(source, "    String? name,\n    String? teacher,", "    String? name,\n    String? courseId,\n    String? teacher,", "Course copyWith args")
+    source = replace_once(source, "    name: name ?? this.name,\n    teacher: teacher ?? this.teacher,", "    name: name ?? this.name,\n    courseId: courseId ?? this.courseId,\n    teacher: teacher ?? this.teacher,", "Course copyWith fields")
+    dollar = chr(36)
+    old_from_json = "    name: '" + dollar + "{j['name'] ?? ''}', teacher: '" + dollar + "{j['teacher'] ?? ''}',"
+    new_from_json = "    name: '" + dollar + "{j['name'] ?? ''}', courseId: '" + dollar + "{j['courseId'] ?? ''}',\n    teacher: '" + dollar + "{j['teacher'] ?? ''}',"
+    source = replace_once(source, old_from_json, new_from_json, "Course fromJson")
+    source = replace_once(source, "    courseName: course.name,\n    weekday: course.weekday,", "    courseId: course.courseId,\n    courseName: course.name,\n    weekday: course.weekday,", "to imported meeting")
+    source = replace_once(source, "      return Course(\n        name: m.courseName,", "      return Course(\n        name: m.courseName,\n        courseId: m.courseId,", "preview Course mapping")
+    path.write_text(source)
+    print("Patched timetable Course rows to retain normalized courseId")
+
+
+def patch_header_word_bounds() -> None:
+    path = Path("lib/import/pdf_course_importer.dart")
+    source = path.read_text()
+    if "weekdayHeaderWords" in source:
+        print("Weekday word-bound extraction patch already present")
+        return
+    old_extract = """      final lines = <_PdfLine>[];
+
+      for (var page = 0; page < document.pages.count; page++) {"""
+    new_extract = """      final lines = <_PdfLine>[];
+      final weekdayHeaderWords = <int, ({double x, double y})>{};
+      const weekdayMap = {
+        '一': 1, '二': 2, '三': 3, '四': 4,
+        '五': 5, '六': 6, '日': 7, '天': 7,
+      };
+      final weekdayPattern = RegExp(r'星期([一二三四五六日天])');
+      for (var page = 0; page < document.pages.count; page++) {"""
+    source = replace_once(source, old_extract, new_extract, "weekday header map")
+    old_add = """          lines.add(_PdfLine(
+            page: page,
+            centerX: center.dx,
+            centerY: center.dy,
+            text: text,
+          ));"""
+    new_add = """          lines.add(_PdfLine(
+            page: page,
+            centerX: center.dx,
+            centerY: center.dy,
+            text: text,
+          ));
+          if (page == 0) {
+            final matches = weekdayPattern.allMatches(text).toList();
+            if (matches.length == 1) {
+              final match = matches.single;
+              weekdayHeaderWords[weekdayMap[match.group(1)]!] =
+                  (x: center.dx, y: center.dy);
+            } else if (matches.length > 1) {
+              // Syncfusion may combine all seven header labels into one visual
+              // TextLine. Use each TextWord's own bounds instead of the
+              // combined line center, otherwise only one weekday is found.
+              for (final word in line.wordCollection) {
+                final match = weekdayPattern.firstMatch(word.text);
+                if (match == null) continue;
+                final wordCenter = word.bounds.center;
+                weekdayHeaderWords[weekdayMap[match.group(1)]!] =
+                    (x: wordCenter.dx, y: wordCenter.dy);
+              }
+            }
+          }"""
+    source = replace_once(source, old_add, new_add, "weekday word bounds")
+    old_headers = """      final headerPoints = <int, ({double x, double y})>{};
+      for (final line in lines.where((l) => l.page == 0)) {
+        final match = RegExp(r'星期([一二三四五六日天])').firstMatch(line.text);
+        if (match == null) continue;
+        const dayMap = {
+          '一': 1, '二': 2, '三': 3, '四': 4,
+          '五': 5, '六': 6, '日': 7, '天': 7,
+        };
+        headerPoints[dayMap[match.group(1)]!] =
+            (x: line.centerX, y: line.centerY);
+      }"""
+    new_headers = "      final headerPoints = weekdayHeaderWords;"
+    source = replace_once(source, old_headers, new_headers, "replace combined header center")
+    path.write_text(source)
+    print("Patched weekday header extraction to use per-word coordinates")
+
+
+if __name__ == "__main__":
+    patch_importer()
+    patch_main_model()
+    patch_header_word_bounds()
+), '')
+            .trim();
         final note = practice
             ? '实践课程；原 PDF 未指定星期和节次'
-            : online
-                ? '线上课程；原 PDF 未指定固定上课时间'
-                : '其他课程；原 PDF 未指定固定上课时间';
+            : normalizedNote.isNotEmpty
+                ? normalizedNote
+                : online
+                    ? '线上课程；原 PDF 未指定固定上课时间'
+                    : '其他课程；原 PDF 未指定固定上课时间';
         result.add(UnscheduledImportedCourse(
           name,
           Set.unmodifiable(weeks),
