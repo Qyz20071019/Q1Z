@@ -130,7 +130,15 @@ def patch_importer() -> None:
             .replaceAll('“', '')
             .replaceAll('”', '')
             .replaceAll('，', '；')
-            .replaceAll(RegExp(r'[。.]
+            .replaceAll('。', '')
+            .trim();
+        final note = practice
+            ? '实践课程；原 PDF 未指定星期和节次'
+            : normalizedNote.isNotEmpty
+                ? normalizedNote
+                : online
+                    ? '线上课程；原 PDF 未指定固定上课时间'
+                    : '其他课程；原 PDF 未指定固定上课时间';
         result.add(UnscheduledImportedCourse(
           name,
           Set.unmodifiable(weeks),
