@@ -92,6 +92,21 @@ List<String> _chunks(String value, int size) {
   return result;
 }
 
+String markerForSource(String source) {
+  for (final marker in ['★', '○', '●', '◇', '◆']) {
+    if (source.contains(marker)) return marker;
+  }
+  return '★';
+}
+
+String kindForMarker(String marker) => switch (marker) {
+      '○' => '实验',
+      '●' => '实践',
+      '◇' => '上机',
+      '◆' => '讨论',
+      _ => '讲课',
+    };
+
 Future<Uint8List> _buildGoldenSchedulePdf(
   Map<String, dynamic> fixture,
 ) async {
@@ -119,20 +134,7 @@ Future<Uint8List> _buildGoldenSchedulePdf(
       .toList();
   final codeByCourse = <String, String>{};
 
-  String markerForSource(String source) {
-    for (final marker in ['★', '○', '●', '◇', '◆']) {
-      if (source.contains(marker)) return marker;
-    }
-    return '★';
-  }
 
-  String kindForMarker(String marker) => switch (marker) {
-        '○' => '实验',
-        '●' => '实践',
-        '◇' => '上机',
-        '◆' => '讨论',
-        _ => '讲课',
-      };
 
   String codeFor(Map<String, dynamic> meeting) {
     final marker = markerForSource(meeting['kind'] as String);
